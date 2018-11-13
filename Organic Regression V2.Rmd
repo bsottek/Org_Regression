@@ -1,0 +1,874 @@
+---
+title: "Organic_Social_Regression_Rework"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(regclass)
+library(lubridate)
+library(sqldf)
+library(anytime)
+library(chron)
+library(rcompanion)
+library(data.table)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+FB<-read.csv('merged.csv')
+FB<-FB[-1,]
+summary(FB)
+#function to run cleaning procedure for each column
+clean<-function(x){
+  FB[,x]<<-as.integer(as.character(FB[,x]))
+  plotNormalHistogram(FB[,x])
+  FB$tran_x<<-c()
+  FB$tran_x<<-transformTukey(FB[,x])
+  plotNormalHistogram(FB$tran_x)
+  summary(FB$tran_x)
+  names(FB)[length(names(FB))]<<-paste(names(FB)[x],"_Transformed",sep = '')
+  return(names(FB)[length(names(FB))])
+}
+
+```
+
+```{r New_Col_Names}
+Old_Names<-names(FB)
+
+New_Names<-c('Post_ID','Permalink','Post_Message','Type','Countries','Language','Posted','Audience_Targeting','Reach','Organic_Reach','Paid_Reach','Impressions','Organic_Impressions','Paid_Impressions','Engaged_Users','Matched_Targeting_Consumers','Matched_Targeting_Consumptions','Negative_Users','Negative_Feedback','Impressions_to_Likes','Reach_to_Likes','Paid_Impressions_to_Likes','Paid_Reach_to_Likes','Likes_Engaged','Organic_Viewers_95','Organic_Views_95','Paid_Viewers_95','Paid_Views_95','Organic_Viewers','Organic_Views','Paid_Viewers','Paid_Views','Avg_Total_Time_Viewed','Video_Length?','Users_Share','Users_Like','Users_Comment','Users_Answer','Count_Share','Count_Like','Count_Comment','Count_Answer','Matched_Targeting_Users_Other_Clicks','Matched_Targeting_Users_Link_Clicks','Matched_Targeting_Users_Video_Clicks','Matched_Targeting_Users_Photo_Clicks','Matched_Targeting_Count_Other_Clicks','Matched_Targeting_Count_Link_Clicks','Matched_Targeting_Count_Video_Clicks','Matched_Targeting_Count_Photo_Clicks','Negative_Count_Hide_All','Negative_Count_Hide_Post','Negative_Count_Report_Spam','Negative_User_Hide_All','Negative_User_Hide_Post','Negative_User_Report_Spam')
+
+names(FB)<-New_Names
+```
+
+```{r Type}
+class(FB$Type) #factor is good
+table(FB$Type)
+levels(FB$Type) #fix empty level
+levels(FB$Type)[1]<-'Unknown'
+length(FB$Type[which(FB$Type == "Unknown")]) #15 records
+
+```
+
+```{r Extra/Empty Col}
+FB$Countries<-NULL #all NAs anyway
+
+FB$Language<-NULL #all NAs anyway
+
+FB$Audience.Targeting<-NULL #all NAs anyway
+
+```
+
+```{r Post_Date/Time}
+FB$Posted<-as.character(FB$Posted)
+FB$Posted<-sub(' ','.',FB$Posted)
+FB$Posted<-strsplit(FB$Posted,'.',fixed = TRUE) #split date and time to [[]] []
+
+#create time column
+Post_Time<-c()
+for(i in 1:length(FB$Posted)){
+  Post_Time[i]<-FB$Posted[[i]][2]
+}
+Post_Time<-paste(Post_Time,':00',sep = '')
+FB$Post_Time<-chron(time=Post_Time)
+
+#create numeric time col
+Post_Time_Numeric<-c()
+for(i in 1:length(FB$Post_Time)){
+  Post_Time_Numeric[i]<-as.character(FB$Post_Time)[i] #to char
+  Post_Time_Numeric[i]<-gsub(':','',FB$Post_Time[i]) #remove :
+  Post_Time_Numeric[i]<-substr(Post_Time_Numeric[i],1,nchar(Post_Time_Numeric[i])-2) #remove trailing sec 0's
+}
+Post_Time_Numeric<- as.numeric(Post_Time_Numeric)
+FB$Post_Time_Numeric<-Post_Time_Numeric
+
+#create date column
+Post_Date<-c()
+for(i in 1:length(FB$Posted)){
+  Post_Date[i]<-FB$Posted[[i]][1]
+}
+Post_Date<-sub('00','20',as.character(as.Date(Post_Date,tryFormats = '%m/%d/%Y')))
+FB$Post_Date<-anydate(Post_Date)
+
+#create numeric date col
+Post_Date_Numeric<-c()
+for(i in 1:length(FB$Post_Date)){
+  Post_Date_Numeric[i]<-as.character(FB$Post_Date)[i] #to char
+  Post_Date_Numeric[i]<-gsub('-','',FB$Post_Date[i]) #remove :
+}
+Post_Date_Numeric<- as.numeric(Post_Date_Numeric)
+FB$Post_Date_Numeric<-Post_Date_Numeric
+
+```
+
+```{r Audience_Targeting}
+summary(FB$Audience_Targeting)
+class(FB$Audience_Targeting)
+FB$Audience_Targeting<-NULL #all NA
+```
+
+```{r Reach}
+class(FB$Reach)
+FB$Reach<-as.integer(as.character(FB$Reach))
+summary(FB$Reach)
+plotNormalHistogram(FB$Reach)
+transformTukey(FB$Reach)
+plotNormalHistogram((FB$Reach)^.3)
+FB$Reach_Transformed<-FB$Reach^.3
+summary(FB$Reach_Transformed)
+```
+
+```{r Organic_Reach}
+class(FB$Organic_Reach)
+FB$Organic_Reach<-as.integer(as.character(FB$Organic_Reach))
+summary(FB$Organic_Reach)
+plotNormalHistogram(FB$Organic_Reach)
+transformTukey(FB$Organic_Reach)
+plotNormalHistogram((FB$Organic_Reach)^.4)
+FB$Organic_Reach_Transformed<-FB$Organic_Reach^.4
+summary(FB$Organic_Reach_Transformed)
+```
+
+```{r Paid_Reach}
+class(FB$Paid_Reach)
+FB$Paid_Reach<-as.integer(as.character(FB$Paid_Reach))
+summary(FB$Paid_Reach)
+plotNormalHistogram(FB$Paid_Reach)
+transformTukey(FB$Paid_Reach)
+plotNormalHistogram((FB$Paid_Reach)^.3)
+FB$Paid_Reach_Transformed<-FB$Paid_Reach^.3
+summary(FB$Paid_Reach_Transformed)
+```
+
+```{r Impressions}
+names(FB)[10]
+class(FB$Impressions)
+FB$Impressions<-as.integer(as.character(FB$Impressions))
+summary(FB$Impressions)
+plotNormalHistogram(FB$Impressions) #skew right *****
+transformTukey(FB$Impressions)
+plotNormalHistogram((FB$Impressions)^(.25))
+FB$Impressions_Trans<-(FB$Impressions)^.25
+summary(FB$Impressions_Trans)
+```
+
+```{r Organic_Impressions}
+names(FB)[11]
+class(FB$Organic_Impressions)
+FB$Organic_Impressions<-as.integer(as.character(FB$Organic_Impressions))
+summary(FB$Organic_Impressions)
+plotNormalHistogram(FB$Organic_Impressions) #skew right *****
+transformTukey(FB$Organic_Impressions)
+plotNormalHistogram((FB$Organic_Impressions)^(.35))
+FB$Organic_Impressions_Trans<-(FB$Organic_Impressions)^.35
+summary(FB$Organic_Impressions_Transformed)
+
+```
+
+```{r Paid_Impressions}
+# left alone for further analysis # records with existing data are roughly normal
+names(FB)[12]
+class(FB$Paid_Impressions)
+FB$Paid_Impressions<-as.integer(as.character(FB$Paid_Impressions))
+summary(FB$Paid_Impressions)
+plotNormalHistogram(FB$Paid_Impressions) #skew right *****
+
+plotNormalHistogram(FB$Paid_Impressions[which(FB$Paid_Impressions>0)])
+summary(FB$Paid_Impressions[which(FB$Paid_Impressions>0)])
+transformTukey((FB$Paid_Impressions[which(FB$Paid_Impressions>0)]))
+
+transformTukey(FB$Paid_Impressions)
+plotNormalHistogram((FB$Paid_Impressions)^(.05))
+FB$Paid_Impressions_Transformed<-(FB$Paid_Impressions)^.05
+summary(FB$Paid_Impressions_Transformed)
+```
+
+```{r Engaged_Users}
+names(FB)[13]
+class(FB$Engaged_Users)
+FB$Engaged_Users<-as.integer(as.character(FB$Engaged_Users))
+summary(FB$Engaged_Users)
+plotNormalHistogram(FB$Engaged_Users)
+transformTukey(FB$Engaged_Users)
+plotNormalHistogram((FB$Engaged_Users)^.15)
+FB$Engaged_Users_Transformed<-FB$Engaged_Users^.15
+summary(FB$Engaged_Users_Transformed)
+
+```
+
+```{r Matched_Targeting_Consumers}
+names(FB)[14]
+class(FB$Matched_Targeting_Consumers)
+FB$Matched_Targeting_Consumers<-as.integer(as.character(FB$Matched_Targeting_Consumers))
+summary(FB$Matched_Targeting_Consumers)
+plotNormalHistogram(FB$Matched_Targeting_Consumers)
+transformTukey(FB$Matched_Targeting_Consumers)
+plotNormalHistogram((FB$Matched_Targeting_Consumers)^.15)
+FB$Matched_Targeting_Consumers_Transformed<-FB$Matched_Targeting_Consumers^.15
+summary(FB$Matched_Targeting_Consumers_Transformed)
+
+
+```
+
+```{r Matched_Targeting_Consumers}
+names(FB)[15]
+class(FB$Matched_Targeting_Consumptions)
+FB$Matched_Targeting_Consumptions<-as.integer(as.character(FB$Matched_Targeting_Consumptions))
+summary(FB$Matched_Targeting_Consumptions)
+plotNormalHistogram(FB$Matched_Targeting_Consumptions)
+transformTukey(FB$Matched_Targeting_Consumptions)
+plotNormalHistogram((FB$Matched_Targeting_Consumptions)^.15)
+FB$Matched_Targeting_Consumptions_Transformed<-FB$Matched_Targeting_Consumptions^.15
+summary(FB$Matched_Targeting_Consumptions_Transformed)
+
+```
+
+```{r Negative_Users}
+names(FB)[16]
+class(FB$Negative_Users)
+FB$Negative_Users<-as.integer(as.character(FB$Negative_Users))
+summary(FB$Negative_Users)
+plotNormalHistogram(FB$Negative_Users)
+transformTukey(FB$Negative_Users)
+plotNormalHistogram((FB$Negative_Users)^.325)
+FB$Negative_Users_Transformed<-FB$Negative_Users^.325
+summary(FB$Negative_Users_Transformed)
+
+```
+
+```{r Negative_Feedback}
+names(FB)[17]
+class(FB$Negative_Feedback)
+FB$Negative_Feedback<-as.integer(as.character(FB$Negative_Feedback))
+summary(FB$Negative_Feedback)
+plotNormalHistogram(FB$Negative_Feedback)
+transformTukey(FB$Negative_Feedback)
+plotNormalHistogram((FB$Negative_Feedback)^.325)
+FB$Negative_Feedback_Transformed<-FB$Negative_Feedback^.325
+summary(FB$Negative_Feedback_Transformed)
+
+```
+
+```{r Impressions_to_Likes}
+names(FB)[18]
+class(FB$Impressions_to_Likes)
+FB$Impressions_to_Likes<-as.integer(as.character(FB$Impressions_to_Likes))
+summary(FB$Impressions_to_Likes)
+plotNormalHistogram(FB$Impressions_to_Likes)
+transformTukey(FB$Impressions_to_Likes)
+plotNormalHistogram((FB$Impressions_to_Likes)^.35)
+FB$Impressions_to_Likes_Transformed<-FB$Impressions_to_Likes^.35
+summary(FB$Impressions_to_Likes_Transformed)
+
+```
+```{r Reach_to_Likes}
+names(FB)[19]
+class(FB$Reach_to_Likes)
+FB$Reach_to_Likes<-as.integer(as.character(FB$Reach_to_Likes))
+summary(FB$Reach_to_Likes)
+plotNormalHistogram(FB$Reach_to_Likes)
+transformTukey(FB$Reach_to_Likes)
+plotNormalHistogram((FB$Reach_to_Likes)^.525)
+FB$Reach_to_Likes_Transformed<-FB$Reach_to_Likes^.525
+summary(FB$Reach_to_Likes_Transformed)
+
+```
+
+```{r Paid_Reach_to_Likes}
+name(20)
+clean(20)
+```
+
+```{r Likes_Engaged}
+name(21)
+clean(21)
+```
+
+```{r Organic_Viewers_95}
+name(22)
+clean(22)
+```
+
+```{r Organic_Views_95}
+name(23)
+clean(23)
+
+```
+
+```{r Paid_Viewers_95}
+name(24)
+clean(24)
+```
+
+```{r Paid_Views_95}
+name(25)
+clean(25)
+```
+```{r Organic_Viewers}
+name(26)
+clean(26)
+```
+
+```{r Organic_Views}
+name(27)
+clean(27)
+```
+
+```{r Paid_Viewers}
+name(28)
+clean(28)
+```
+
+```{r Paid_Views}
+name(29)
+clean(29)
+```
+
+```{r Avg_Total_Time_Viewed}
+name(30)
+### I don't think this column actually means anything. Desc. is "Average time video viewed (total count)" which makes 0 sense bc why sum an avg
+FB<- FB[,-30] #removing
+
+```
+
+```{r Video_Length}
+name(30)
+### same as above. Doesn't make any sense. "Length of a video post (total count)".
+FB<- FB[,-30]
+```
+
+```{r Users_Share}
+name(30)
+clean(30)
+```
+
+```{r Users_Like}
+name(31)
+clean(31)
+```
+
+```{r Users_Comment}
+name(32)
+clean(32)
+```
+
+```{r Users_Answer}
+name(33)
+clean(33)
+```
+
+```{r Count_Share}
+name(34)
+clean(34)
+```
+
+```{r Count_Like}
+name(35)
+clean(35)
+```
+
+```{r Count_Comment}
+name(36)
+clean(36)
+```
+
+```{r Count_Answer}
+name(37)
+clean(37)
+```
+
+```{r Matched_Targeting_Users_Other_Clicks}
+name(38)
+clean(38)
+```
+
+```{r Matched_Targeting_Users_Link_Clicks}
+name(39)
+clean(39)
+```
+
+```{r Matched_Targeting_Users_Video_Clicks}
+name(40)
+clean(40)
+```
+
+```{r Matched_Targeting_Users_Photo_Clicks}
+name(41)
+clean(41)
+```
+
+```{r Matched_Targeting_Count_Other_Clicks}
+name(42)
+clean(42)
+```
+
+```{r Matched_Targeting_Count_Link_Clicks}
+name(43)
+clean(43)
+```
+
+```{r Matched_Targeting_Count_Video_Clicks}
+name(44)
+clean(44)
+```
+
+```{r Matched_Targeting_Count_Photo_Clicks}
+name(45)
+clean(45)
+```
+
+```{r Negative_Count_Hide_All}
+name(46)
+clean(46)
+```
+
+```{r Negative_Count_Hide_Post}
+name(47)
+clean(47)
+```
+
+```{r Negative_Count_Report_Spam}
+name(48)
+clean(48)
+```
+
+```{r Negative_User_Hide_All}
+name(49)
+clean(49)
+```
+
+```{r Negative_User_Hide_Post}
+name(50)
+clean(50)
+```
+
+```{r Negative_User_Report_Spam}
+name(51)
+clean(51)
+```
+
+```{r Post_Time}
+name(52)
+#don't clean times
+```
+```{r Post_Time_Numeric}
+name(53)
+#don't clean times
+```
+
+```{r Post_Date}
+name(54)
+#don't clean dates
+```
+
+```{r Post_Date_Numeric}
+name(55)
+#don't clean dates
+```
+
+```{r Ask/Give} 
+ #need to change this after we get full ask/give data
+FB_sub<-FB_ORG[1:334,]
+FB_sub$Ask_Give<-as.factor(c('ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'GIVE',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'GIVE',
+'GIVE',
+'GIVE',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'GIVE',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'GIVE',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'GIVE',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'GIVE',
+'ASK',
+'GIVE',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'GIVE',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'',
+'ASK',
+'GIVE',
+'ASK',
+'GIVE',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'GIVE',
+'ASK',
+'GIVE',
+'GIVE ',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'GIVE',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'GIVE',
+'GIVE',
+'GIVE',
+'ASK',
+'',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'GIVE',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'GIVE',
+'ASK',
+'ASK',
+'GIVE',
+'ASK'))
+
+levels(FB_sub$Ask_Give)[1]<-'Unknown'
+FB_sub$Ask_Give[which(FB_sub$Ask_Give == 'GIVE ')]<- 'GIVE'
+
+```
+
+
+```{r Type_Dataframes}
+#make seperate data frames per post type  and per paid/org with applicable columns
+
+#organic
+FB_ORG<-FB[which(FB$Paid_Impressions == 0),] #remove paid records
+FB_ORG<-FB_ORG[,-which(names(FB_ORG) %like% 'Paid')] #remove paid columns
+FB_ORG<-FB_ORG[,-c(6:43)] #!!!!!!!!!!!!!!!consider using to replace FBOT. Keep non transformable var
+
+#FBOT<-FB_ORG[,which(names(FB_ORG) %like% 'Transformed')] #Facebook Organic transformed variables (numeric)
+
+FB_PAID<- FB[which(FB$Paid_Impressions > 0),]
+```
+
+
+
+
+
+```{r Organic_Transformed_Analysis}
+all_correlations(FB_ORG,type = 'spearman',interest = 'Reach_Transformed',sorted = 'strength')
+all_correlations(FB_ORG,type = 'spearman',interest = 'Reach_to_Likes_Transformed',sorted = 'strength')
+all_correlations(FB_ORG,type = 'spearman',interest = 'Engaged_Users_Transformed',sorted = 'strength')
+all_correlations(FB_ORG,type = 'spearman',interest = 'Likes_Engaged_Transformed',sorted = 'strength')
+all_correlations(FB_ORG,type = 'spearman',interest = 'Matched_Targeting_Consumers_Transformed',sorted = 'strength')
+  plot(Count_Comment_Transformed~Type, data = FB_ORG)
+  associate(Count_Comment_Transformed~Type, data = FB_ORG,permutations = 0)
+  m<-lm(Reach_Transformed~Count_Comment_Transformed,data = FB_ORG)
+  plot(m)
+
+associate(Engaged_Users_Transformed~Count_Like_Transformed, data = FBOT, permutations = 0)
+plot(Engaged_Users_Transformed~Count_Like_Transformed, data = FBOT, permutations = 0)
+
+m<-lm(Reach_Transformed~Negative_Feedback_Transformed, data = FBOT)
+m<-lm(Reach~Negative_Feedback, data = FB)
+summary(m)
+
+
+plot(FBOT$Reach_Transformed,FBOT$Negative_Feedback_Transformed)
+```
+
+
+
+
+```{r misc_Analysis}
+#full data set
+
+associate(Reach_Transformed~Type, data = FB, permutations = 0)
+  kruskal.test(Reach_Transformed~Type, data = FB)
+associate(Engaged_Users_Transformed~Type, data = FB)
+boxplot(Engaged_Users_Transformed~Type, data = FB, ylab = 'Engaged_Users_Transformed')
+associate(Post_Time_Numeric~Reach_Transformed, data = FB)
+
+#temporary incomplete ask/give
+associate(Reach_Transformed~Ask_Give, data = FB_sub, permutations = 1000)
+
+all_correlations(FB_sub, type = 'spearman', interest = 'Reach_Transformed', sorted = 'strength')
+
+
+M<-lm(Reach_Transformed~ , data = FB)
+```
+
+
